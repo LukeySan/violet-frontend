@@ -30,7 +30,7 @@ jobs:
 
       - name: Sync main branch
         run: |
-          git checkout main
+          git checkout origin main
           git merge upstream/main
           git push origin main
 
