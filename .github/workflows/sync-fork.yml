@@ -33,9 +33,3 @@ jobs:
           git checkout -b origin main
           git merge upstream/main
           git push origin main
-
-      - name: Sync develop branch
-        run: |
-          git checkout -b origin develop
-          git merge upstream/develop
-          git push origin develop
