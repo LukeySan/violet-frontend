@@ -1,4 +1,4 @@
-name: Sync Fork Dev
+name: Sync Fork
 
 on:
   schedule:
