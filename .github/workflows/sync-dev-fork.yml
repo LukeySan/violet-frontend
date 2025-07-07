@@ -19,17 +19,15 @@ jobs:
         run: |
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
-
       - name: Add upstream remote
         run: |
           git remote add upstream https://github.com/NYU-Club-Tennis/violet-frontend.git
-
       - name: Fetch upstream
         run: |
           git fetch upstream
-
+          git fetch origin
       - name: Sync develop branch
         run: |
-          git checkout -b origin develop
+          git checkout develop || git checkout -b develop
           git merge upstream/develop
           git push origin develop
