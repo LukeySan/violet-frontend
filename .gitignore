@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.github/workflows/sync-fork*.yml
+
+.github/workflows/sync-fork-dev.yml
