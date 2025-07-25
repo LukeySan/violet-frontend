@@ -1,0 +1,67 @@
+name: Sync Fork Dev
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # Runs every 6 hours
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to sync"
+        required: true
+        default: "develop"
+        type: choice
+        options:
+          - develop
+  push:
+    branches:
+      - develop
+
+jobs:
+  check_branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if on develop branch
+        run: |
+          if [[ "${{ github.ref }}" != "refs/heads/develop" ]]; then
+            echo "This workflow must run on the develop branch"
+            exit 1
+          fi
+
+  sync:
+    needs: check_branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/NYU-Club-Tennis/violet-frontend.git
+
+      - name: Fetch upstream
+        run: |
+          git fetch upstream
+<<<<<<< HEAD:.github/workflows/sync-fork.yml
+
+      - name: Sync main branch
+        run: |
+          git checkout -b origin main
+          git merge upstream/main
+          git push origin main
+=======
+          git fetch origin
+
+      - name: Sync develop branch
+        run: |
+          git checkout develop || git checkout -b develop
+          git merge upstream/develop
+          git push origin develop
+>>>>>>> feedb8277a39eb0d3423b41b1befdfb7ea06cdd6:.github/workflows/sync-dev-fork.yml

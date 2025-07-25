@@ -1,6 +1,6 @@
 import { Button, Form, Input, Modal } from "antd";
 import React, { useEffect, useState } from "react";
-import logo from "../../assets/svgs/Purple-Athletic-logo-text.svg";
+import { purpleAthleticLogoText as logo } from "assets";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AuthStore } from "stores/auth.store";
 import { createProfile, validateCode } from "actions/auth.action";
@@ -36,11 +36,7 @@ const CreateProfile = () => {
     try {
       const response = await validateCode(resetCode!);
 
-      console.log("response", response);
-
       const { email } = response.data;
-
-      console.log("email", email);
 
       setEmail(email);
       form.setFieldValue("email", email);

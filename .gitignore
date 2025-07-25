@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 
+
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -26,3 +28,6 @@ dist-ssr
 .github/workflows/sync-fork*.yml
 
 .github/workflows/sync-fork-dev.yml
+
+# Sync fork workflow files
+.github/workflows/sync-fork*.yml
