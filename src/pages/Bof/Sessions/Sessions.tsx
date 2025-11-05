@@ -1,5 +1,5 @@
 import React, { FC, useEffect, useState } from "react";
-import { Button, Pagination, Select, message, Form, Modal } from "antd";
+import { Button, Pagination, Select, message, Form, Modal, Tabs } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import {
   getSessionPaginate,
@@ -35,6 +35,7 @@ const { Option } = Select;
 const Sessions: FC = () => {
   // Main state
   const [sessions, setSessions] = useState<ISession[]>([]);
+  const [archivedSessions, setArchivedSessions] = useState<ISession[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -49,6 +50,7 @@ const Sessions: FC = () => {
   const [sessionRegistrations, setSessionRegistrations] = useState<
     IRegistrationWithUser[]
   >([]);
+  const [unregisteringId, setUnregisteringId] = useState<number | null>(null);
 
   // Create session modal state
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -65,6 +67,12 @@ const Sessions: FC = () => {
   const [deletingSessionId, setDeletingSessionId] = useState<number | null>(
     null
   );
+  const [archivingSessionId, setArchivingSessionId] = useState<number | null>(
+    null
+  );
+  const [unarchivingSessionId, setUnarchivingSessionId] = useState<
+    number | null
+  >(null);
 
   // Status management state
   const [pendingStatusChange, setPendingStatusChange] =
@@ -79,6 +87,11 @@ const Sessions: FC = () => {
   >("registered");
 
   const pageSize = 10;
+
+  // Attendance per-row loading state
+  const [markingAttendanceId, setMarkingAttendanceId] = useState<number | null>(
+    null
+  );
 
   // Check if screen is mobile
   useEffect(() => {
@@ -101,12 +114,13 @@ const Sessions: FC = () => {
         sortOptions: [{ date: "ASC" }, { time: "ASC" }] as {
           [key: string]: string;
         }[],
+        archived: false,
       };
 
       const response = await getSessionPaginate(query);
 
-      // Filter by status on frontend if provided (since backend might not support status filter)
-      let filteredSessions = response.data.data;
+      // Ensure archived sessions are never shown in this tab
+      let filteredSessions = response.data.data.filter((s) => !s.isArchived);
       if (status) {
         filteredSessions = response.data.data.filter(
           (session) => session.status === status
@@ -117,6 +131,29 @@ const Sessions: FC = () => {
       setTotal(status ? filteredSessions.length : response.data.total);
     } catch (error) {
       console.error("Failed to fetch sessions:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchArchivedSessions = async (page: number) => {
+    setLoading(true);
+    try {
+      const query = {
+        page,
+        limit: pageSize,
+        sortOptions: [{ date: "DESC" }, { time: "DESC" }] as {
+          [key: string]: string;
+        }[],
+        archived: true,
+      };
+
+      const response = await getSessionPaginate(query);
+      // Ensure only archived sessions are shown
+      setArchivedSessions(response.data.data.filter((s) => s.isArchived));
+    } catch (error) {
+      console.error("Failed to fetch archived sessions:", error);
+      setArchivedSessions([]);
     } finally {
       setLoading(false);
     }
@@ -165,6 +202,36 @@ const Sessions: FC = () => {
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+  };
+
+  const handleArchive = async (session: ISession) => {
+    try {
+      setArchivingSessionId(session.id);
+      await (await import("actions/session.action")).archiveSession(session.id);
+      message.success("Session archived");
+      fetchSessions(currentPage, statusFilter);
+      fetchArchivedSessions(1);
+    } catch (e) {
+      message.error("Failed to archive session");
+    } finally {
+      setArchivingSessionId(null);
+    }
+  };
+
+  const handleUnarchive = async (session: ISession) => {
+    try {
+      setUnarchivingSessionId(session.id);
+      await (
+        await import("actions/session.action")
+      ).unarchiveSession(session.id);
+      message.success("Session unarchived");
+      fetchSessions(currentPage, statusFilter);
+      fetchArchivedSessions(1);
+    } catch (e) {
+      message.error("Failed to unarchive session");
+    } finally {
+      setUnarchivingSessionId(null);
+    }
   };
 
   // Create session handlers
@@ -221,6 +288,14 @@ const Sessions: FC = () => {
 
   // Edit session handlers
   const handleEditSession = (session: ISession) => {
+    // Open the Session Details modal instead of the Edit modal
+    setSelectedSession(session);
+    setRegistrationsModalVisible(true);
+    fetchSessionRegistrations(session.id);
+  };
+
+  // Open the Edit Session modal from within the Session Details modal
+  const handleOpenEditModal = (session: ISession) => {
     setSessionToEdit(session);
     setEditModalVisible(true);
 
@@ -340,7 +415,8 @@ const Sessions: FC = () => {
             <br />
             {session.location}
             <br />
-            {new Date(session.date).toLocaleDateString()} at {session.time}
+            {dayjs(`${session.date}T00:00`).format("MMM D, YYYY")} at{" "}
+            {session.time}
           </div>
           {hasRegistrations && (
             <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded">
@@ -509,12 +585,32 @@ const Sessions: FC = () => {
     setEmailRecipients(value);
   };
 
+  const handleAdminUnregister = async (registrationId: number) => {
+    try {
+      setUnregisteringId(registrationId);
+      await (
+        await import("actions/registration.action")
+      ).deleteRegistration(registrationId);
+      message.success("Participant unregistered");
+      if (selectedSession) {
+        await fetchSessionRegistrations(selectedSession.id);
+      }
+      // Refresh the main sessions list since spots/waitlist may have changed
+      fetchSessions(currentPage, statusFilter);
+    } catch (e) {
+      message.error("Failed to unregister participant");
+    } finally {
+      setUnregisteringId(null);
+    }
+  };
+
   // Attendance handler
   const handleMarkAttendance = async (
     registrationId: number,
     hasAttended: boolean
   ) => {
     try {
+      setMarkingAttendanceId(registrationId);
       console.log(
         "Marking attendance for registration:",
         registrationId,
@@ -552,6 +648,8 @@ const Sessions: FC = () => {
       } else {
         message.error("Failed to mark attendance. Please try again.");
       }
+    } finally {
+      setMarkingAttendanceId(null);
     }
   };
 
@@ -595,15 +693,52 @@ const Sessions: FC = () => {
         </div>
       </div>
 
-      {/* Sessions Table */}
-      <SessionsTable
-        sessions={sessions}
-        loading={loading}
-        isMobile={isMobile}
-        onSessionClick={handleSessionClick}
-        onEditSession={handleEditSession}
-        onDeleteSession={handleDeleteSession}
-        deletingSessionId={deletingSessionId}
+      {/* Tabs: Active vs Archived */}
+      <Tabs
+        defaultActiveKey="active"
+        onChange={(key) => {
+          if (key === "active") {
+            fetchSessions(currentPage, statusFilter);
+          } else if (key === "archived") {
+            fetchArchivedSessions(1);
+          }
+        }}
+        items={[
+          {
+            key: "active",
+            label: "Sessions",
+            children: (
+              <SessionsTable
+                sessions={sessions}
+                loading={loading}
+                isMobile={isMobile}
+                onSessionClick={handleSessionClick}
+                onEditSession={handleEditSession}
+                onDeleteSession={handleDeleteSession}
+                deletingSessionId={deletingSessionId}
+                onArchive={handleArchive}
+                archivingSessionId={archivingSessionId}
+              />
+            ),
+          },
+          {
+            key: "archived",
+            label: "Archived",
+            children: (
+              <SessionsTable
+                sessions={archivedSessions}
+                loading={loading}
+                isMobile={isMobile}
+                onSessionClick={handleSessionClick}
+                onEditSession={handleEditSession}
+                onDeleteSession={handleDeleteSession}
+                deletingSessionId={deletingSessionId}
+                onUnarchive={handleUnarchive}
+                unarchivingSessionId={unarchivingSessionId}
+              />
+            ),
+          },
+        ]}
       />
 
       {/* Pagination */}
@@ -660,7 +795,7 @@ const Sessions: FC = () => {
         emailLoading={emailLoading}
         emailRecipients={emailRecipients}
         onClose={handleModalClose}
-        onEditSession={handleEditSession}
+        onEditSession={handleOpenEditModal}
         onDeleteSession={handleDeleteSession}
         onStatusChange={handleStatusChange}
         onApplyStatusChange={applyStatusChange}
@@ -668,6 +803,9 @@ const Sessions: FC = () => {
         onEmailRecipientsChange={handleEmailRecipientsChange}
         onEmailSubmit={handleEmailSubmit}
         onMarkAttendance={handleMarkAttendance}
+        markingAttendanceId={markingAttendanceId}
+        onUnregister={handleAdminUnregister}
+        unregisteringId={unregisteringId}
       />
     </div>
   );
